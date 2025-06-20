@@ -1,0 +1,22 @@
+[
+	{
+		"mac_src":"MAC2",
+		"mac_dst":"MAC4",
+		"bidireccional": true
+	},
+	{
+		"mac_src":"host1",
+		"dst_port":5001,
+		"protocol":"tcp"
+	},
+	{
+		"dst_port":5001
+	},
+	{
+		"mac_src":"MAC2",
+		"protocol":"tcp",
+		"dst_port":5001,
+		"bidireccional": true
+
+	}
+]
