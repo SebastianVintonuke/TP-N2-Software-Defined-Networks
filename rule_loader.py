@@ -15,12 +15,22 @@ class Peer :
 	def __init__(self, mac, port):
 		self.mac = mac
 		self.port = port
+		self.ip = None
+
+	def __repr__(self):
+		if self.ip :
+			return "mac:{0} ip:{1} port: {2}".format(self.mac,self.ip, self.port)
+		return "mac:{0} port: {1}".format(self.mac, self.port)
 
 class PacketData :
-	def __init__(self, protocol):
+	def __init__(self, protocol = None):
 		self.protocol = protocol
-		self.src = Peer("", 0)
-		self.dst = Peer("", 0)
+		self.red_protocol = None
+		self.src = Peer(None, None)
+		self.dst = Peer(None, None)
+
+	def __repr__(self):
+		return "red:{0} proto:{1}\nsrc=> {2}\ndst=> {3}".format(self.red_protocol,self.protocol, self.src, self.dst)
 
 
 
