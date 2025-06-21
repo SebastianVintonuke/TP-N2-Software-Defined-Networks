@@ -9,7 +9,7 @@ FIELD_DST_PORT = "dst_port"
 FIELD_SRC_PORT = "src_port"
 FIELD_PROTOCOL = "protocol"
 
-FIELD_BIDIRECCIONAL = "bidireccional"
+FIELD_BIDIRECTIONAL = "bidireccional"
 
 class Peer :
 	def __init__(self, mac, port):
@@ -43,7 +43,7 @@ class Rule:
 		print("-------> constraints",constraints);
 
 		self.constraints = constraints
-		self.bidireccional = constraints.get(FIELD_BIDIRECCIONAL, False)
+		self.bidirectional = constraints.get(FIELD_BIDIRECTIONAL, False)
 
 		self.connection_checks = []
 
@@ -70,41 +70,37 @@ class Rule:
 			if not check(data):
 				return False
 	
-		return len(checks) > 0
+		return True#len(checks) > 0
 
 	def verify_direccional_checks(self, src,dst):
-		if len(self.src_checks) > 0 and not self.verify_checks(src, self.src_checks):
-			return False
+		if len(self.src_checks) > 0:
+			
+			if not self.verify_checks(src, self.src_checks):
+				return False
+			
+			return (len(self.dst_checks) == 0 or self.verify_checks(dst, self.dst_checks))
 
-		return len(self.src_checks) > 0 and (len(self.dst_checks) == 0 
-		or self.verify_checks(dst, self.dst_checks))
+		return len(self.dst_checks) > 0 and self.verify_checks(dst, self.dst_checks)
 
-	def should_block(self, packet):
-		if len(self.connection_checks) > 0 and not self.verify_checks(packet, self.connection_checks):
-			return False
-		
+	def check_bidireccional_checks(self, packet):
 		if self.verify_direccional_checks(packet.src, packet.dst):
 			return True
 
-		if self.bidireccional and self.verify_direccional_checks(packet.dst, packet.src):
+		if self.bidirectional and self.verify_direccional_checks(packet.dst, packet.src):
 			return True
 
 		return False
 
+	def should_block(self, packet):
+		if len(self.connection_checks) > 0:
+			if not self.verify_checks(packet, self.connection_checks):
+				return False
 
-"""
-return (
-	self.verify_checks(packet, self.connection_checks)
-	and 
-	(
-	self.verify_direccional_checks(packet.src, packet.dst)
-	or
-	(
-		self.bidireccional and self.verify_direccional_checks(packet.dst, packet.src)
-	)
-	)
-)
-"""
+			# Hay checks de coxion y se cumplieron todos
+			if len(self.dst_checks) == 0 and len(self.src_checks) == 0:
+				return True
+
+		return self.check_bidireccional_checks(packet)	
 
 def load_rules_from(file, out):
 
