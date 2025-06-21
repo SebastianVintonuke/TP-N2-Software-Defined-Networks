@@ -20,11 +20,28 @@ from pox.lib.util import dpidToStr
 from pox.lib.addresses import EthAddr
 from collections import namedtuple
 import os
-from .rule_loader import *
+from . import rule_loader
+
 
 # Add your imports here ...
 log = core.getLogger()
 
+def logger_debug(*args, **kwargs):
+    format_str = " ".join((["%s"] * len(args)))
+    log.debug(format_str,*args)
+
+def logger_info(*args, **kwargs):
+    format_str = " ".join((["%s"] * len(args)))
+    log.debug(format_str,*args)
+
+rule_loader.logger = logger_debug
+rule_loader.logger_info = logger_info
+
+
+module_dir = os.path.dirname(os.path.abspath(__file__))
+file_path = os.path.join(module_dir, "config.json") # On the same folder as this firewall.py
+
+FIREWALL_RULES = rule_loader.load_rules(file_path)
 
 MAC_EXAMPLE = "00:00:00:00:00:01"
 
@@ -47,7 +64,7 @@ def not_valid_protocol(protocol):
 			and protocol != GRE_PROTOCOL)
 
 def parse_protocol(type):
-	return TCP_STR
+	return "ICMP" if type == ICMP_PROTOCOL else str(type)
 
 # Add your global variables here ...
 
@@ -76,7 +93,7 @@ def load_ipv4_info(dto_packet, ip):
 		return False
 
 
-	log.debug("Should not block? VALID IP PROT %s", proto);
+	log.debug("Should never block, VALID IP PROT %s", parse_protocol(proto));
 	#Valid protocol ICMP or something....
 	return True
 
@@ -138,7 +155,7 @@ class Firewall (EventMixin) :
 
 	def _handle_PacketIn (self, event):
 		packet = event.parsed
-		dto_packet = PacketData()
+		dto_packet = rule_loader.PacketData()
 
 		# Extract MAC
 		dto_packet.src.mac = str(packet.src)
@@ -154,8 +171,12 @@ class Firewall (EventMixin) :
 			return
 		
 		if dto_packet.protocol != None: # Not defined protocol at this point is assumed as invalid
-			log.debug("Should run rules on packet protocol,for now block? %s", dto_packet)
-			#block_packet(packet, event)
+			
+			if dto_packet.is_blocked_by(FIREWALL_RULES):
+				log.info("Blocked packet %s", dto_packet)
+				block_packet(packet, event)
+				return
+			log.info("Rules wise not blocked %s", dto_packet)
 		#else:
 		#	log.debug("Blocked unrecognized packet eth type %s :: packet dto:\n%s",ethernet.getNameForType(packet.type), dto_packet)
 

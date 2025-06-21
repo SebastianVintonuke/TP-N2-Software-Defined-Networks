@@ -5,18 +5,7 @@
 		"bidireccional": true
 	},
 	{
-		"mac_src":"host1",
-		"dst_port":5001,
-		"protocol":"tcp"
-	},
-	{
-		"dst_port":5001
-	},
-	{
-		"mac_src":"MAC2",
-		"protocol":"tcp",
-		"dst_port":5001,
-		"bidireccional": true
-
+		"red_protocol":"ipv6",
+		"protocol":"udp"
 	}
 ]
