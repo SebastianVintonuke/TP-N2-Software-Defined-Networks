@@ -109,7 +109,7 @@ sudo mn --custom ./linear_ends_topo.py --topo linends,1,800 --link tc --mac --ar
 ```
 
 
-Para una custom topology, agregada al repo
+Para una topologia dinamica, agregada al repo
 ```bash
-sudo mn --custom ./sample_topo.py --topo customTopo --mac --arp --switch ovsk --controller remote
+sudo mn --custom ./dynamic_topology.py --topo dynamicTopology,0 --mac --arp --switch ovsk --controller remote
 ```

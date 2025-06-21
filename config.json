@@ -7,5 +7,10 @@
 	{
 		"red_protocol":"ipv6",
 		"protocol":"udp"
+	},
+	{
+		"protocol":"udp",
+		"dst_port":5201,
+		"bidireccional": true
 	}
 ]

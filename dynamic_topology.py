@@ -1,7 +1,7 @@
 from mininet . topo import Topo
 
 DEF_NUM_SWITCHES = 3
-class CustomTopo (Topo) :
+class DynamicTopology (Topo) :
 	def build(self, number_switches = DEF_NUM_SWITCHES) :
 		#Create switch
 		switch_left = self.addSwitch('s0')
@@ -41,10 +41,10 @@ topos = {
 }
 """
 
-#topos = { 'customTopo': CustomTopo }#Topo
+#topos = { 'customTopo': DynamicTopology }#Topo
 
 topos = {
-    'customTopo': (
-    	lambda n=DEF_NUM_SWITCHES: CustomTopo(number_switches=int(n))
+    'dynamicTopology': (
+    	lambda n=DEF_NUM_SWITCHES: DynamicTopology(number_switches=int(n))
     )
 }
