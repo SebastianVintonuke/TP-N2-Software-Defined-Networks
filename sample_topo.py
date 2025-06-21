@@ -1,21 +1,36 @@
 from mininet . topo import Topo
 
+DEF_NUM_SWITCHES = 3
 class CustomTopo (Topo) :
-	def __init__ ( self ) :
-		# Initialize topology
-		Topo.__init__(self)
-		
+	def build(self, number_switches = DEF_NUM_SWITCHES) :
 		#Create switch
-		s1 = self.addSwitch('switch_1')
-		s2 = self.addSwitch('switch_2')
+		switch_left = self.addSwitch('s0')
+		switch_right = self.addSwitch(f's{DEF_NUM_SWITCHES+1}')
+
 		# Create hosts
 		h1 = self.addHost('host_1')
 		h2 = self.addHost('host_2')
 		h3 = self.addHost('host_3')
-		# Add links between switches and hosts self . addLink ( s1 , s2 )
-		self.addLink(s1,h1)
-		self.addLink(s1,h2)
-		self.addLink(s2,h3)
+		h4 = self.addHost('host_4')
+
+		# Add links between switches and hosts self . addLink ( switch_left , switch_right )
+
+		self.addLink(switch_left,h1)
+		self.addLink(switch_left,h2)
+
+
+		# Add variable ammount of intermediate switches
+		prev = switch_left
+
+		for i in range(1, number_switches+1):
+			switch_dinamico = self.addSwitch(f'switch_{i}')
+
+			self.addLink(prev, switch_dinamico)
+			prev = switch_dinamico
+
+		self.addLink(prev,switch_right)
+		self.addLink(switch_right,h3)
+		self.addLink(switch_right,h4)
 	
 """
 topos = {
@@ -26,4 +41,10 @@ topos = {
 }
 """
 
-topos = { 'customTopo': CustomTopo }#Topo
+#topos = { 'customTopo': CustomTopo }#Topo
+
+topos = {
+    'customTopo': (
+    	lambda n=DEF_NUM_SWITCHES: CustomTopo(number_switches=int(n))
+    )
+}
