@@ -13,14 +13,55 @@ from pox.lib.packet.ipv6 import ipv6
 from pox.lib.packet.tcp import tcp
 from pox.lib.packet.udp import udp
 
+from pox.lib.util import dpid_to_str
 #import pox.lib.packet as pkt
 
 from pox.lib.revent import *
 from pox.lib.util import dpidToStr
-from pox.lib.addresses import EthAddr
+from pox.lib.addresses import IPAddr, IPAddr6, EthAddr
 from collections import namedtuple
 import os
 from . import rule_loader
+
+class FlowRuleBuilder:
+	def __init__(self):
+        self.fm = of.ofp_flow_mod()
+        self.fm.priority = 100
+        self.fm.idle_timeout = 0  # Permanent rule
+        self.fm.hard_timeout = 0  # Permanent rule
+        self.fm.match = of.ofp_match()
+        self.is_ipv6 = False
+
+    def filter_by_src_mac(self, mac):
+    	self.fm.match.dl_src = EthAddr(mac)
+    def filter_by_dst_mac(self, mac):
+    	self.fm.match.dl_dest = EthAddr(mac)
+
+    def filter_by_src_ip(self, ip):
+    	self.fm.match.nw_src = IPAddr6(ip) if self.is_ipv6 else IPAddr(ip)
+
+    def filter_by_dst_ip(self, ip):
+    	self.fm.match.nw_dst = IPAddr6(ip) if self.is_ipv6 else IPAddr(ip)
+
+    def filter_by_src_port(self, port):
+        self.fm.match.tp_src = port
+
+    def filter_by_dst_port(self, port):
+        self.fm.match.tp_dst = port
+
+    def filter_by_protocol(self, protocol):
+    	prot_code = MAP_TRANSPORT_PROTOCOLS.get(protocol, None)
+    	if prot_code != None:
+	        self.fm.match.nw_proto = prot_code
+
+    def filter_by_red_protocol(self, red_protocol):
+    	prot_code = MAP_RED_PROTOCOLS.get(red_protocol, None)
+    	self.is_ipv6 = prot_code == IPV6_TYPE
+
+    	if prot_code != None:
+	        self.fm.match.dl_type = prot_code
+
+
 
 
 # Add your imports here ...
@@ -32,7 +73,7 @@ def logger_debug(*args, **kwargs):
 
 def logger_info(*args, **kwargs):
     format_str = " ".join((["%s"] * len(args)))
-    log.debug(format_str,*args)
+    log.info(format_str,*args)
 
 rule_loader.logger = logger_debug
 rule_loader.logger_info = logger_info
@@ -41,10 +82,9 @@ rule_loader.logger_info = logger_info
 module_dir = os.path.dirname(os.path.abspath(__file__))
 file_path = os.path.join(module_dir, "config.json") # On the same folder as this firewall.py
 
-FIREWALL_RULES = rule_loader.load_rules(file_path)
+FIREWALL_RULES = rule_loader.load_rules(file_path, FlowRuleBuilder)
 
-MAC_EXAMPLE = "00:00:00:00:00:01"
-
+TARGET_SWITCH = "00-00-00-00-00-01"
 TCP_STR = "tcp"
 UDP_STR = "udp"
 
@@ -64,7 +104,7 @@ def not_valid_protocol(protocol):
 			and protocol != GRE_PROTOCOL)
 
 def parse_protocol(type):
-	return "ICMP" if type == ICMP_PROTOCOL else str(type)
+	return "icmp" if type == ICMP_PROTOCOL else str(type)
 
 # Add your global variables here ...
 
@@ -92,6 +132,7 @@ def load_ipv4_info(dto_packet, ip):
 		log.info("dto: %s", dto_packet)
 		return False
 
+	#dto_packet.protocol = parse_protocol(proto)
 
 	log.debug("Should never block, VALID IP PROT %s", parse_protocol(proto));
 	#Valid protocol ICMP or something....
@@ -135,6 +176,33 @@ def parsed_ip(dto_packet, ethernet_packet):
 	return ip and load_ipv4_info(dto_packet, ip)
 
 
+IPV6_TYPE = 0x86DD
+MAP_RED_PROTOCOLS = {
+	"ipv4": 0x0800,
+	"ipv6":IPV6_TYPE,
+}
+
+MAP_TRANSPORT_PROTOCOLS = {
+	"tcp": TCP_PROTOCOL,
+	"udp": UDP_PROTOCOL,
+	"icmp": ICMP_PROTOCOL,
+}
+
+
+def add_flow_rules(connection):
+
+        fm = of.ofp_flow_mod()
+        fm.priority = 100
+        fm.idle_timeout = 0  # Permanent rule
+        fm.hard_timeout = 0  # Permanent rule
+
+        fm.match = of.ofp_match()
+        fm.match.dl_type = IPV4_PROTOCOL
+        fm.match.nw_proto = TCP_PROTOCOL
+        #fm.match.tp_dst = 80            # Destination TCP port
+        connection.send(fm)
+
+
 def block_packet(packet, event):
     fm = of.ofp_flow_mod()
     fm.match = of.ofp_match.from_packet(packet, event.port)
@@ -152,6 +220,8 @@ class Firewall (EventMixin) :
 		connection.addListeners(self)
 
 		log.debug("Added Redes Firewall to connection")
+		add_flow_rules(connection)
+
 
 	def _handle_PacketIn (self, event):
 		packet = event.parsed
@@ -164,9 +234,9 @@ class Firewall (EventMixin) :
 
 		if not parsed_ip(dto_packet, packet):
 			if dto_packet.red_protocol == None:
-				log.debug("Not ipv4/ipv6 packet type %s", ethernet.getNameForType(packet.type))
-			#else:
-			#	log.debug("blocked invalid transport protocol red prot: %s",dto_packet.red_protocol)
+				log.info("Not ipv4/ipv6 packet type %s", ethernet.getNameForType(packet.type))
+			else:
+				log.info("blocked invalid transport protocol red prot: %s",dto_packet.red_protocol)
 
 			return
 		
@@ -177,15 +247,17 @@ class Firewall (EventMixin) :
 				block_packet(packet, event)
 				return
 			log.info("Rules wise not blocked %s", dto_packet)
-		#else:
-		#	log.debug("Blocked unrecognized packet eth type %s :: packet dto:\n%s",ethernet.getNameForType(packet.type), dto_packet)
+		else:
+			log.info("None protocol, packet allow by default")
+
+		block_packet(packet, event)
 
 		# If not blocked, flood or forward
-		msg = of.ofp_packet_out()
-		msg.data = event.ofp
-		msg.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
-		msg.in_port = event.port
-		self.connection.send(msg)
+		#msg = of.ofp_packet_out()
+		#msg.data = event.ofp
+		#msg.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
+		#msg.in_port = event.port
+		#self.connection.send(msg)
 
 	#def _handle_ConnectionUp(self,event) :
 		# Add your logic here ...
@@ -219,8 +291,14 @@ def launch():
 
 def launch():
 	def start_switch(event):
-		log.info("Attaching Redes Firewall to switch: %s", event.connection)
-		Firewall(event.connection)
+		dpid = event.dpid  
+
+		if dpid_to_str(dpid) == TARGET_SWITCH:
+			log.info("Attaching Redes Firewall to switch: id:%s conn:%s", dpid_to_str(dpid) ,event.connection)
+			Firewall(event.connection)
+		else:
+			log.info("Do not attach Redes Firewall to switch: id:%s conn:%s", dpid_to_str(dpid) ,event.connection)
+			
 	core.openflow.addListenerByName("ConnectionUp", start_switch)
 
 

@@ -17,6 +17,33 @@ FIELD_RED_PROTOCOL = "red_protocol"
 
 FIELD_BIDIRECTIONAL = "bidireccional"
 
+
+class RuleBuilder:
+    def filter_by_src_mac(self, mac):
+    	pass
+    def filter_by_dst_mac(self, mac):
+    	pass
+
+    def filter_by_src_ip(self, ip):
+    	pass
+
+    def filter_by_dst_ip(self, ip):
+    	pass
+
+    def filter_by_src_port(self, port):
+    	pass
+
+    def filter_by_dst_port(self, port):
+    	pass
+
+    def filter_by_protocol(self, protocol):
+    	pass
+
+    def filter_by_red_protocol(self, red_protocol):
+    	pass
+
+
+
 def logger(*args, **kwargs):
 	pass
 
@@ -53,102 +80,80 @@ class PacketData :
 	    return False    
 
 
-def CHECK_PORT(constraint, host):
-	logger_info("------> CHECKING PORT {0} is not {1}".format(host.port, constraint))
-	return constraint == host.port
 
-def CHECK_MAC(constraint, host):
-	logger_info("------> CHECKING MAC {0} is not {1}".format(host.mac, constraint))
-	return constraint == host.mac
+def FILTER_SRC_MAC(rule, vl):
+	rule.filter_by_src_map(vl)
 
+def FILTER_SRC_IP(rule, vl):
+	rule.filter_by_src_ip(vl)
 
-def CHECK_IP(constraint, host):
-	logger_info("------> CHECKING MAC {0} is not {1}".format(host.ip, constraint))
-	return constraint == host.ip
+def FILTER_SRC_PORT(rule, vl):
+	rule.filter_by_src_port(vl)
 
 
-def CHECK_PROTOCOL(constraint, connection):
-	logger_info("------> CHECKING PROTOCOL '{0}'' is not '{1}'".format(connection.protocol, constraint))
-	return constraint == connection.protocol
+def FILTER_DST_MAC(rule, vl):
+	rule.filter_by_dst_mac(vl)
 
-def CHECK_RED_PROTOCOL(constraint, connection):
-	logger_info("------> CHECKING RED PROTOCOL '{0}'' is not '{1}'".format(connection.red_protocol, constraint))
-	return constraint == connection.red_protocol
+def FILTER_DST_IP(rule, vl):
+	rule.filter_by_dst_ip(vl)
+
+def FILTER_DST_PORT(rule, vl):
+	rule.filter_by_dst_port(vl)
+
+def FILTER_TRANSPORT_PROTOCOL(rule, vl):
+	rule.filter_by_protocol(vl)
+def FILTER_RED_PROTOCOL(rule, vl):
+	rule.filter_by_red_protocol(vl)
 
 
+class RuleBuilder:
 
-class Rule:
-
-	def __init__(self, constraints):
+	def __init__(self, constraints, invert= False):
 		logger_info("-------> Rule constraints",constraints);
 
+		#self.bidirectional = constraints.get(FIELD_BIDIRECTIONAL, False)
 		self.constraints = constraints
-		self.bidirectional = constraints.get(FIELD_BIDIRECTIONAL, False)
-
-		self.connection_checks = []
-
-		self.add_check(FIELD_PROTOCOL, self.connection_checks, CHECK_PROTOCOL)
-		self.add_check(FIELD_RED_PROTOCOL, self.connection_checks, CHECK_RED_PROTOCOL)
+		self.checks = []
+		
+		self.add_check(FIELD_PROTOCOL, FILTER_TRANSPORT_PROTOCOL)
+		self.add_check(FIELD_RED_PROTOCOL, FILTER_RED_PROTOCOL)
 
 
+		if invert:
+			self.add_check(FIELD_SRC_MAC, FILTER_SRC_MAC)
+			self.add_check(FIELD_SRC_IP,FILTER_SRC_IP)
+			self.add_check(FIELD_SRC_PORT, FILTER_SRC_PORT)
 
-		self.src_checks = []
-		self.dst_checks = []
+			self.add_check(FIELD_DST_MAC, FILTER_DST_MAC)
+			self.add_check(FIELD_DST_IP, FILTER_DST_IP)
+			self.add_check(FIELD_DST_PORT, FILTER_DST_PORT)
+		else:
+			self.add_check(FIELD_SRC_MAC, FILTER_DST_MAC)
+			self.add_check(FIELD_SRC_IP,FILTER_DST_IP)
+			self.add_check(FIELD_SRC_PORT, FILTER_DST_PORT)
 
-		self.add_check(FIELD_SRC_MAC, self.src_checks, CHECK_MAC)
-		self.add_check(FIELD_SRC_IP, self.src_checks, CHECK_IP)
-
-		self.add_check(FIELD_SRC_PORT, self.src_checks, CHECK_PORT)
-
-		self.add_check(FIELD_DST_MAC, self.dst_checks, CHECK_MAC)
-		self.add_check(FIELD_DST_IP, self.dst_checks, CHECK_IP)
-		self.add_check(FIELD_DST_PORT, self.dst_checks, CHECK_PORT)
-
-	def add_check(self, field, checks, validator):
+			self.add_check(FIELD_DST_MAC, FILTER_SRC_MAC)
+			self.add_check(FIELD_DST_IP, FILTER_SRC_IP)
+			self.add_check(FIELD_DST_PORT, FILTER_SRC_PORT)
+	def add_check(self, field, adder):
 		constraint = self.constraints.get(field, None)
 		if constraint != None:
-			#logger("---------> ADDING CHECK", field, "!=", constraint)
-			checks.append(lambda value: validator(constraint, value))
+			self.checks.append(lambda rule: adder(rule, constraint))
 
 
-	def verify_checks(self, data, checks):
-		for check in checks:
-			if not check(data):
-				return False
-	
-		return True#len(checks) > 0
 
-	def verify_direccional_checks(self, src,dst):
-		if len(self.src_checks) > 0:
-			
-			if not self.verify_checks(src, self.src_checks):
-				return False
-			
-			return (len(self.dst_checks) == 0 or self.verify_checks(dst, self.dst_checks))
+	def attach_checks(self, matcher):
+		for check in self.checks:
+			check(matcher)
 
-		return len(self.dst_checks) > 0 and self.verify_checks(dst, self.dst_checks)
+	def build_new(self, rule_constructor):
+		rule = rule_constructor()
+		attach_checks(rule)
+		return rule	
 
-	def check_bidireccional_checks(self, packet):
-		if self.verify_direccional_checks(packet.src, packet.dst):
-			return True
 
-		if self.bidirectional and self.verify_direccional_checks(packet.dst, packet.src):
-			return True
 
-		return False
-
-	def should_block(self, packet):
-		if len(self.connection_checks) > 0:
-			if not self.verify_checks(packet, self.connection_checks):
-				return False
-
-			# Hay checks de coxion y se cumplieron todos
-			if len(self.dst_checks) == 0 and len(self.src_checks) == 0:
-				return True
-
-		return self.check_bidireccional_checks(packet)	
-
-def load_rules_from(file, out):
+def load_rules_from(file, out, rule_constructor):
 
 	if not os.path.isfile(file) :
 		logger_info("-----> File ",file, "does not exists or is not a file");
@@ -158,17 +163,14 @@ def load_rules_from(file, out):
 		loaded = json.load(reader)
 
 		for itm in loaded:
-			out.append(Rule(itm))
+			out.append( RuleBuilder(itm).build_new(rule_constructor))
 
-
-	#logger("---------> LOAD RULES FROM ", file)
-
-
+			if itm.get(FIELD_BIDIRECTIONAL, False):
+				out.append( RuleBuilder(itm, invert= True).build_new(rule_constructor))
 
 	logger_info("Loaded Rules got rules count ",len(out))
 
-
-def load_rules(rules_file):
+def load_rules(rules_file, rule_constructor):
     rules = []
-    load_rules_from(rules_file, rules)
+    load_rules_from(rules_file, rules, rule_constructor)
     return rules    
