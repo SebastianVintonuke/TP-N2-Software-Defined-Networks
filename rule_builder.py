@@ -24,32 +24,6 @@ FIELD_RED_PROTOCOL = "red_protocol"
 
 FIELD_BIDIRECTIONAL = "bidireccional"
 
-
-class RuleBuilder:
-    def filter_by_src_mac(self, mac):
-    	pass
-    def filter_by_dst_mac(self, mac):
-    	pass
-
-    def filter_by_src_ip(self, ip):
-    	pass
-
-    def filter_by_dst_ip(self, ip):
-    	pass
-
-    def filter_by_src_port(self, port):
-    	pass
-
-    def filter_by_dst_port(self, port):
-    	pass
-
-    def filter_by_protocol(self, protocol):
-    	pass
-
-    def filter_by_red_protocol(self, red_protocol):
-    	pass
-
-
 def FILTER_SRC_MAC(rule, vl):
 	rule.filter_by_src_mac(vl)
 
@@ -78,7 +52,6 @@ def FILTER_RED_PROTOCOL(rule, vl):
 class RuleBuilder:
 
 	def __init__(self, constraints, invert= False):
-		#logger_info("-------> Rule constraints",constraints);
 		self.constraints = constraints
 		self.checks = []
 		
@@ -124,7 +97,7 @@ class RuleBuilder:
 def load_rules_from(file, out, rule_constructor):
 
 	if not os.path.isfile(file) :
-		logger_info("-----> File ",file, "does not exists or is not a file");
+		logger_info("File ",file, "does not exists or is not a file");
 		return
 
 	with open(file, "r") as reader:
@@ -145,3 +118,63 @@ def load_rules(rules_file, rule_constructor):
     rules = []
     load_rules_from(rules_file, rules, rule_constructor)
     return rules    
+
+
+def silent_load_rules_from(file, out, rule_constructor):
+	if not os.path.isfile(file) :
+		logger_info("File ",file, "does not exists or is not a file");
+		return
+
+	with open(file, "r") as reader:
+		loaded = json.load(reader)
+
+		for itm in loaded:
+			out.append(RuleBuilder(itm).build_new(rule_constructor))
+
+			if itm.get(FIELD_BIDIRECTIONAL, False):
+				out.append(RuleBuilder(itm, invert= True).build_new(rule_constructor))
+
+def silent_load_rules(rules_file, rule_constructor):
+    rules = []
+    silent_load_rules_from(rules_file, rules, rule_constructor)
+    return rules    
+
+
+
+
+
+
+
+
+FIELD_TARGETS = "target_switches"
+FIELD_RULES = "block_rules"
+
+def load_config_rules(rules_spec, out, rule_constructor):
+	for itm in rules_spec:
+		logger_info("")
+		logger_info("Creating new block rule:")
+		out.append(RuleBuilder(itm).build_new(rule_constructor))
+
+		if itm.get(FIELD_BIDIRECTIONAL, False):
+			logger_info("Adding inverted rule:")
+			out.append(RuleBuilder(itm, invert= True).build_new(rule_constructor))
+
+	logger_info("Loaded Rules got rules count ",len(out))
+
+def load_config(config_file, targets, rule_constructor):
+	if not os.path.isfile(config_file) :
+		logger_info("File ",config_file, "does not exists or is not a file");
+		return []
+
+	rules = []
+
+	with open(config_file, "r") as reader:
+		loaded = json.load(reader)
+
+		for target in loaded.get(FIELD_TARGETS, []):
+			targets.append(target)
+
+		load_config_rules(loaded[FIELD_RULES], rules, rule_constructor)
+		#logger_info("RULES JSON", )
+		#load_rules_from(, rules, rule_constructor)
+	return rules    

@@ -21,13 +21,14 @@ from pox.lib.util import dpidToStr
 from pox.lib.addresses import IPAddr, IPAddr6, EthAddr
 from collections import namedtuple
 import os
-from . import rule_loader
+from . import rule_builder
+
+from .dtos.rule_blocker import RuleBlocker
 import copy
 # Add your imports here ...
 log = core.getLogger()
 
 
-TARGET_SWITCH = "00-00-00-00-00-01"
 TCP_STR = "tcp"
 UDP_STR = "udp"
 
@@ -55,7 +56,7 @@ MAP_TRANSPORT_PROTOCOLS = {
 	"icmp": ICMP_PROTOCOL,
 }
 
-class FlowRuleBuilder (rule_loader.RuleBuilder):
+class FlowRuleBlocker (RuleBlocker):
 	def __init__(self):
 		self.fm = of.ofp_flow_mod()
 		self.fm.priority = 100
@@ -155,8 +156,8 @@ def logger_info(*args, **kwargs):
     format_str = " ".join((["%s"] * len(args)))
     log.info(format_str,*args)
 
-rule_loader.logger = logger_debug
-rule_loader.logger_info = logger_info
+rule_builder.logger = logger_debug
+rule_builder.logger_info = logger_info
 
 
 module_dir = os.path.dirname(os.path.abspath(__file__))
@@ -189,21 +190,27 @@ class Firewall (EventMixin) :
 	def _handle_Events (self, event):
 		log.debug("---->Events")
 
+
+
+TARGET_SWITCHES = []
+
 def launch():
+	global FIREWALL_RULES
 	def start_switch(event):
-		global FIREWALL_RULES
 		dpid = event.dpid
 
-		if FIREWALL_RULES == None:
-			FIREWALL_RULES= rule_loader.load_rules(CONFIG_PATH, FlowRuleBuilder)
-
-
-		if dpid_to_str(dpid) == TARGET_SWITCH:
+		if dpid_to_str(dpid) in TARGET_SWITCHES:
 			log.info("Attaching Redes Firewall to switch: id:%s conn:%s", dpid_to_str(dpid) ,event.connection)
 			Firewall(event.connection)
 		else:
 			log.info("Do not attach Redes Firewall to switch: id:%s conn:%s", dpid_to_str(dpid) ,event.connection)
-			
+
+	
+	FIREWALL_RULES= rule_builder.load_config(CONFIG_PATH, TARGET_SWITCHES, FlowRuleBlocker)
+	log.info("")
+	for target in TARGET_SWITCHES:
+		log.info("Added target switch: %s",target)
+
 	core.openflow.addListenerByName("ConnectionUp", start_switch)
 
 
