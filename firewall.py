@@ -1,59 +1,54 @@
-#Coursera :
-#- Software Defined Networking ( SDN ) course
-#-- Programming Assignment : Layer -2 Firewall Application Professor : Nick Feamster
-#Teaching Assistant : Arpit Gupta
-
 from pox.core import core
 import pox.openflow.libopenflow_01 as of
 
-from pox.lib.packet.ethernet import ethernet
-from pox.lib.packet.ipv4 import ipv4
-from pox.lib.packet.ipv6 import ipv6
-
-from pox.lib.packet.tcp import tcp
-from pox.lib.packet.udp import udp
 
 from pox.lib.util import dpid_to_str
+from pox.lib.revent import *
+from pox.lib.addresses import IPAddr, IPAddr6, EthAddr
+
+#from pox.lib.packet.ethernet import ethernet
+#from pox.lib.packet.ipv4 import ipv4
+#from pox.lib.packet.ipv6 import ipv6
+
+#from pox.lib.packet.tcp import tcp
+#from pox.lib.packet.udp import udp
+#from pox.lib.util import dpidToStr
+#from collections import namedtuple
 #import pox.lib.packet as pkt
 
-from pox.lib.revent import *
-from pox.lib.util import dpidToStr
-from pox.lib.addresses import IPAddr, IPAddr6, EthAddr
-from collections import namedtuple
 import os
-from . import rule_builder
-
-from .dtos.rule_blocker import RuleBlocker
 import copy
-# Add your imports here ...
+
+from . import rule_builder
+from .dtos.rule_blocker import RuleBlocker
+from . import verbose_packetin as utils
+
 log = core.getLogger()
 
+def logger_debug(*args, **kwargs):
+    format_str = " ".join((["%s"] * len(args)))
+    log.debug(format_str,*args)
 
-TCP_STR = "tcp"
-UDP_STR = "udp"
+def logger_info(*args, **kwargs):
+    format_str = " ".join((["%s"] * len(args)))
+    log.info(format_str,*args)
+
+rule_builder.logger = logger_debug
+rule_builder.logger_info = logger_info
+
+utils.log_debug = logger_debug
+utils.log_info = logger_info
 
 
-TCP_PROTOCOL = 6
-UDP_PROTOCOL = 17
-
-ICMP_PROTOCOL = 1
-GRE_PROTOCOL = 47 # Generic Routing Encapsulation
-ESP_PROTOCOL = 50 # Encapsulating Security Payload
-AH_PROTOCOL = 51 # 	Authentication Header
-
-ICMPV6_PROTOCOL =58
-
-IPV6_TYPE = 0x86DD
-IPV4_TYPE = 0x0800
 MAP_RED_PROTOCOLS = {
-	"ipv4": IPV4_TYPE,
-	"ipv6":IPV6_TYPE,
+	utils.IPV4_STR: utils.IPV4_TYPE,
+	utils.IPV6_STR: utils.IPV6_TYPE,
 }
 
 MAP_TRANSPORT_PROTOCOLS = {
-	"tcp": TCP_PROTOCOL,
-	"udp": UDP_PROTOCOL,
-	"icmp": ICMP_PROTOCOL,
+	utils.TCP_STR: utils.TCP_PROTOCOL,
+	utils.UDP_STR: utils.UDP_PROTOCOL,
+	utils.ICMP_STR: utils.ICMP_PROTOCOL,
 }
 
 class FlowRuleBlocker (RuleBlocker):
@@ -64,12 +59,12 @@ class FlowRuleBlocker (RuleBlocker):
 		self.fm.hard_timeout = 0  # Permanent rule
 		self.fm.match = of.ofp_match()
 
-		self.fm.match.dl_type = IPV4_TYPE
+		self.fm.match.dl_type = utils.IPV4_TYPE
 		self.has_filter_port = False
 		self.has_filter_protocol = False
 
 	def is_ipv6(self):
-		return self.fm.match.dl_type == IPV6_TYPE
+		return self.fm.match.dl_type == utils.IPV6_TYPE
 
 	def filter_by_src_mac(self, mac):
 		try:
@@ -139,25 +134,11 @@ class FlowRuleBlocker (RuleBlocker):
 
 		fm = copy.deepcopy(self.fm)
 		
-		fm.match.nw_proto = TCP_PROTOCOL
+		fm.match.nw_proto = utils.TCP_PROTOCOL
 		connection.send(fm)
 
-		fm.match.nw_proto = UDP_PROTOCOL
+		fm.match.nw_proto = utils.UDP_PROTOCOL
 		connection.send(fm)
-
-
-
-
-def logger_debug(*args, **kwargs):
-    format_str = " ".join((["%s"] * len(args)))
-    log.debug(format_str,*args)
-
-def logger_info(*args, **kwargs):
-    format_str = " ".join((["%s"] * len(args)))
-    log.info(format_str,*args)
-
-rule_builder.logger = logger_debug
-rule_builder.logger_info = logger_info
 
 
 module_dir = os.path.dirname(os.path.abspath(__file__))
@@ -175,21 +156,8 @@ class Firewall (EventMixin) :
 		for rule in FIREWALL_RULES:
 			rule.add_to_connection(connection)
 
-	#def _handle_PacketIn (self, event):
-	#	log.info("----> HANDLE PACKET IN? %s", event)
-	def _handle_FlowRemoved (self, event):
-		log.debug("---->FlowRemoved")
-	def _handle_PortStatus (self, event):
-		log.debug("---->PortStatus")
-	def _handle_BarrierIn (self, event):
-		log.debug("---->BarrierIn")
-	def _handle_ErrorIn (self, event):
-		log.debug("---->ErrorIn")
-	def _handle_Statistics (self, event):
-		log.debug("---->Statistics")
-	def _handle_Events (self, event):
-		log.debug("---->Events")
-
+	def _handle_PacketIn(self, event):
+		utils.verbose_packetin(event)
 
 
 TARGET_SWITCHES = []
@@ -200,10 +168,10 @@ def launch():
 		dpid = event.dpid
 
 		if dpid_to_str(dpid) in TARGET_SWITCHES:
-			log.info("Attaching Redes Firewall to switch: id:%s conn:%s", dpid_to_str(dpid) ,event.connection)
+			log.info("Attaching to switch:%s" ,event.connection)
 			Firewall(event.connection)
 		else:
-			log.info("Do not attach Redes Firewall to switch: id:%s conn:%s", dpid_to_str(dpid) ,event.connection)
+			log.info("Do not attach to switch:%s" ,event.connection)
 
 	
 	FIREWALL_RULES= rule_builder.load_config(CONFIG_PATH, TARGET_SWITCHES, FlowRuleBlocker)
