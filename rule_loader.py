@@ -2,6 +2,13 @@ import json
 import os
 
 
+
+def logger(*args, **kwargs):
+	pass
+
+def logger_info(*args, **kwargs):
+	pass
+
 FIELD_SRC_MAC = "mac_src"
 FIELD_DST_MAC = "mac_dst"
 
@@ -43,46 +50,8 @@ class RuleBuilder:
     	pass
 
 
-
-def logger(*args, **kwargs):
-	pass
-
-def logger_info(*args, **kwargs):
-	pass
-
-class Peer :
-	def __init__(self, mac, port):
-		self.mac = mac
-		self.port = port
-		self.ip = None
-
-	def __repr__(self):
-		if self.ip :
-			return "mac:{0} ip:{1} port: {2}".format(self.mac,self.ip, self.port)
-		return "mac:{0} port: {1}".format(self.mac, self.port)
-
-class PacketData :
-	def __init__(self, protocol = None):
-		self.protocol = protocol
-		self.red_protocol = None
-		self.src = Peer(None, None)
-		self.dst = Peer(None, None)
-
-	def __repr__(self):
-		return "red:{0} proto:{1}\nsrc=> {2}\ndst=> {3}".format(self.red_protocol,self.protocol, self.src, self.dst)
-
-	def is_blocked_by(self, rules):
-	    #ind = 0
-	    for rule in rules:
-	        if rule.should_block(self):
-	            return True
-	        #ind+=1
-	    return False    
-
-
-
 def FILTER_SRC_MAC(rule, vl):
-	rule.filter_by_src_map(vl)
+	rule.filter_by_src_mac(vl)
 
 def FILTER_SRC_IP(rule, vl):
 	rule.filter_by_src_ip(vl)
@@ -109,9 +78,7 @@ def FILTER_RED_PROTOCOL(rule, vl):
 class RuleBuilder:
 
 	def __init__(self, constraints, invert= False):
-		logger_info("-------> Rule constraints",constraints);
-
-		#self.bidirectional = constraints.get(FIELD_BIDIRECTIONAL, False)
+		#logger_info("-------> Rule constraints",constraints);
 		self.constraints = constraints
 		self.checks = []
 		
@@ -120,14 +87,6 @@ class RuleBuilder:
 
 
 		if invert:
-			self.add_check(FIELD_SRC_MAC, FILTER_SRC_MAC)
-			self.add_check(FIELD_SRC_IP,FILTER_SRC_IP)
-			self.add_check(FIELD_SRC_PORT, FILTER_SRC_PORT)
-
-			self.add_check(FIELD_DST_MAC, FILTER_DST_MAC)
-			self.add_check(FIELD_DST_IP, FILTER_DST_IP)
-			self.add_check(FIELD_DST_PORT, FILTER_DST_PORT)
-		else:
 			self.add_check(FIELD_SRC_MAC, FILTER_DST_MAC)
 			self.add_check(FIELD_SRC_IP,FILTER_DST_IP)
 			self.add_check(FIELD_SRC_PORT, FILTER_DST_PORT)
@@ -135,6 +94,15 @@ class RuleBuilder:
 			self.add_check(FIELD_DST_MAC, FILTER_SRC_MAC)
 			self.add_check(FIELD_DST_IP, FILTER_SRC_IP)
 			self.add_check(FIELD_DST_PORT, FILTER_SRC_PORT)
+		else:
+			self.add_check(FIELD_SRC_MAC, FILTER_SRC_MAC)
+			self.add_check(FIELD_SRC_IP,FILTER_SRC_IP)
+			self.add_check(FIELD_SRC_PORT, FILTER_SRC_PORT)
+
+			self.add_check(FIELD_DST_MAC, FILTER_DST_MAC)
+			self.add_check(FIELD_DST_IP, FILTER_DST_IP)
+			self.add_check(FIELD_DST_PORT, FILTER_DST_PORT)
+	
 	def add_check(self, field, adder):
 		constraint = self.constraints.get(field, None)
 		if constraint != None:
@@ -148,7 +116,7 @@ class RuleBuilder:
 
 	def build_new(self, rule_constructor):
 		rule = rule_constructor()
-		attach_checks(rule)
+		self.attach_checks(rule)
 		return rule	
 
 
@@ -163,10 +131,13 @@ def load_rules_from(file, out, rule_constructor):
 		loaded = json.load(reader)
 
 		for itm in loaded:
-			out.append( RuleBuilder(itm).build_new(rule_constructor))
+			logger_info("")
+			logger_info("Creating new block rule:")
+			out.append(RuleBuilder(itm).build_new(rule_constructor))
 
 			if itm.get(FIELD_BIDIRECTIONAL, False):
-				out.append( RuleBuilder(itm, invert= True).build_new(rule_constructor))
+				logger_info("Adding inverted rule:")
+				out.append(RuleBuilder(itm, invert= True).build_new(rule_constructor))
 
 	logger_info("Loaded Rules got rules count ",len(out))
 
