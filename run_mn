@@ -14,6 +14,4 @@ fi
 echo "Creating a dynamic topology on mininet with $trg intermediate switches, total of $(($trg+2))" 
 echo "sudo mn --custom ./dynamic_topology.py --topo dynamicTopology,$trg --mac --arp --switch ovsk --controller remote"
 
-sudo mn --custom ./dynamic_topology.py --topo dynamicTopology,$trg --mac --arp --switch ovsk --controller remote && echo "SOME"
-
-echo "RUNNED"
+sudo mn --custom ./dynamic_topology.py --topo dynamicTopology,$trg --mac --arp --switch ovsk --controller remote
