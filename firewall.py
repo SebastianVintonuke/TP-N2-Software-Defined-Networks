@@ -76,7 +76,7 @@ class FlowRuleBlocker (RuleBlocker):
 
 	def filter_by_dst_mac(self, mac):
 		try:
-			self.fm.match.dl_dest = EthAddr(mac)
+			self.fm.match.dl_dst = EthAddr(mac)
 			log.info("dst mac: %s",mac)
 		except Exception as e:
 			log.info("FAILED dst mac: %s .. %s",mac, e)
@@ -162,12 +162,19 @@ class Firewall (EventMixin) :
 
 TARGET_SWITCHES = []
 
+def is_target(switch):
+	for target in TARGET_SWITCHES:
+		if target == switch:
+			log.info("----->SWITCH %s is target == %s", switch, target)
+			return True
+	return False
+
 def launch():
 	global FIREWALL_RULES
 	def start_switch(event):
 		dpid = event.dpid
-
-		if dpid_to_str(dpid) in TARGET_SWITCHES:
+		#if dpid_to_str(dpid) == TARGET_SWITCHES[0]:
+		if is_target(dpid_to_str(dpid)):
 			log.info("Attaching to switch:%s" ,event.connection)
 			Firewall(event.connection)
 		else:

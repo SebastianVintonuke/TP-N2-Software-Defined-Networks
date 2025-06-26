@@ -172,7 +172,7 @@ def load_config(config_file, targets, rule_constructor):
 		loaded = json.load(reader)
 
 		for target in loaded.get(FIELD_TARGETS, []):
-			targets.append(target)
+			targets.append(str(target))
 
 		load_config_rules(loaded[FIELD_RULES], rules, rule_constructor)
 		#logger_info("RULES JSON", )
